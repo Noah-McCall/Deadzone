@@ -1,0 +1,248 @@
+# Noah Mccall
+
+
+import pygame
+import random
+import math
+
+pygame.init()
+
+# Window settings
+WIDTH, HEIGHT = 960, 640
+TILE = 32
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Dead Zone")
+clock = pygame.time.Clock()
+
+# Colors
+BLACK = (10, 12, 10)
+DARK_GREEN = (18, 42, 24)
+GREEN = (35, 75, 35)
+GRAY = (90, 95, 85)
+WHITE = (230, 230, 210)
+RED = (180, 45, 35)
+YELLOW = (230, 220, 80)
+CYAN = (80, 220, 220)
+
+font = pygame.font.Font(None, 24)
+big_font = pygame.font.Font(None, 40)
+
+# Player
+player = pygame.Rect(100, 100, 20, 20)
+speed = 3
+
+# Game data
+tools = [
+    "Laser Pointer",
+    "Ultraviolet",
+    "Headgear Light",
+    "Raw Meat",
+    "Leaves",
+    "Walkie-talkie",
+    "Bear Traps"
+]
+
+traits = ["Carnivore", "Herbivore", "Micro"]
+
+specimens = []
+for i in range(30):
+    specimens.append({
+        "x": random.randint(80, WIDTH - 80),
+        "y": random.randint(80, HEIGHT - 80),
+        "traits": random.sample(traits, 3),
+        "found": False
+    })
+
+selected_tool = 0
+message = "Find specimens in the Dead Zone."
+identified = 0
+
+# Forest decorations
+trees = []
+for _ in range(180):
+    trees.append((
+        random.randint(0, WIDTH),
+        random.randint(0, HEIGHT)
+    ))
+
+def draw_text(text, x, y, color=WHITE):
+    image = font.render(text, True, color)
+    screen.blit(image, (x, y))
+
+def draw_world():
+    screen.fill(GRAY)
+
+    # Forest floor
+    for x, y in trees:
+        pygame.draw.rect(
+            screen, GREEN, (x, y, 12, 12)
+        )
+
+    # Abandoned nuclear plant
+    plant = pygame.Rect(650, 60, 220, 150)
+    pygame.draw.rect(screen, GRAY, plant)
+    pygame.draw.rect(screen, BLACK, plant, 4)
+
+    draw_text("ABANDONED PLANT", 665, 75, YELLOW)
+
+    # Warning symbol
+    pygame.draw.polygon(
+        screen, YELLOW,
+        [(760, 110), (740, 150), (780, 150)]
+    )
+    draw_text("!", 756, 125, BLACK)
+
+def draw_specimens():
+    for s in specimens:
+        if not s["found"]:
+            color = CYAN
+            pygame.draw.rect(
+                screen, color,
+                (s["x"], s["y"], 12, 12)
+            )
+
+            # Laser pointer reveals nearby specimens
+            if selected_tool == 0:
+                distance = math.hypot(
+                    player.centerx - s["x"],
+                    player.centery - s["y"]
+                )
+                if distance < 150:
+                    pygame.draw.circle(
+                        screen, YELLOW,
+                        (s["x"] + 6, s["y"] + 6), 12, 1
+                    )
+
+def use_tool():
+    global identified, message
+
+    nearest = None
+    nearest_distance = 999999
+
+    for s in specimens:
+        if s["found"]:
+            continue
+
+        distance = math.hypot(
+            player.centerx - s["x"],
+            player.centery - s["y"]
+        )
+
+        if distance < nearest_distance:
+            nearest = s
+            nearest_distance = distance
+
+    if nearest is None or nearest_distance > 50:
+        message = "No specimen nearby."
+        return
+
+    tool = selected_tool
+
+    # Different tools reveal different traits
+    if tool == 0:
+        message = "Laser: specimen located."
+    elif tool == 1:
+        message = "UV: Micro trait detected!"
+    elif tool == 2:
+        message = "Light: specimen illuminated."
+    elif tool == 3:
+        message = "Meat: testing carnivore response."
+    elif tool == 4:
+        message = "Leaves: testing herbivore response."
+    elif tool == 5:
+        message = "Radio: specimen signal detected."
+    elif tool == 6:
+        message = "Trap: specimen captured!"
+
+    # Capture with the selected tool
+    if tool == 6:
+        nearest["found"] = True
+        identified += 1
+        message = (
+            f"Specimen captured! "
+            f"{identified}/30 collected."
+        )
+
+    # Simple food-based identification
+    elif tool in (3, 4):
+        target = "Carnivore" if tool == 3 else "Herbivore"
+
+        if target in nearest["traits"]:
+            nearest["found"] = True
+            identified += 1
+            message = (
+                f"{target} identified! "
+                f"{identified}/30"
+            )
+        else:
+            message = "No matching feeding response."
+
+def draw_ui():
+    pygame.draw.rect(
+        screen, BLACK, (0, HEIGHT - 100, WIDTH, 100)
+    )
+
+    draw_text(f"Tool: {tools[selected_tool]}", 20, HEIGHT - 90)
+    draw_text(message, 20, HEIGHT - 62)
+    draw_text(
+        f"Specimens: {identified}/30",
+        WIDTH - 210, HEIGHT - 90, YELLOW
+    )
+
+    draw_text(
+        "WASD: Move | 1-7: Tools | E: Use tool",
+        20, HEIGHT - 30
+    )
+
+running = True
+
+while running:
+    clock.tick(60)
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+        if event.type == pygame.KEYDOWN:
+            if pygame.K_1 <= event.key <= pygame.K_7:
+                selected_tool = event.key - pygame.K_1
+
+            if event.key == pygame.K_e:
+                use_tool()
+
+    keys = pygame.key.get_pressed()
+
+    dx = 0
+    dy = 0
+
+    if keys[pygame.K_w] or keys[pygame.K_UP]:
+        dy -= speed
+    if keys[pygame.K_s] or keys[pygame.K_DOWN]:
+        dy += speed
+    if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+        dx -= speed
+    if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+        dx += speed
+
+    # Prevent faster diagonal movement
+    if dx and dy:
+        dx *= 0.7071
+        dy *= 0.7071
+
+    player.x += round(dx)
+    player.y += round(dy)
+
+    player.clamp_ip(screen.get_rect())
+
+    draw_world()
+    draw_specimens()
+
+    # Player
+    pygame.draw.rect(screen, RED, player)
+    pygame.draw.rect(screen, WHITE, player, 1)
+
+    draw_ui()
+
+    pygame.display.flip()
+
+pygame.quit()
