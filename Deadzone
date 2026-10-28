@@ -1,209 +1,297 @@
-# Noah Mccall
-# 10.20.2026
-
 import pygame
 import random
 import math
 
 pygame.init()
 
-# Window settings
 WIDTH, HEIGHT = 960, 640
-TILE = 32
+HUD_HEIGHT = 100
+WORLD_HEIGHT = HEIGHT - HUD_HEIGHT
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Dead Zone")
+pygame.display.set_caption("DEAD ZONE")
 clock = pygame.time.Clock()
 
-# Colors
-BLACK = (10, 12, 10)
-DARK_GREEN = (18, 42, 24)
-GREEN = (35, 75, 35)
-GRAY = (90, 95, 85)
-WHITE = (230, 230, 210)
-RED = (180, 45, 35)
-YELLOW = (230, 220, 80)
-CYAN = (80, 220, 220)
+BLACK = (8, 11, 9)
+DARK_GREEN = (17, 37, 24)
+GREEN = (34, 67, 37)
+WHITE = (225, 230, 213)
+YELLOW = (239, 216, 100)
+CYAN = (75, 230, 225)
+RED = (195, 54, 42)
+PURPLE = (180, 110, 230)
 
-font = pygame.font.Font(None, 24)
-big_font = pygame.font.Font(None, 40)
+font = pygame.font.Font(None, 22)
+small_font = pygame.font.Font(None, 18)
+big_font = pygame.font.Font(None, 34)
 
-# Player
-player = pygame.Rect(100, 100, 20, 20)
-speed = 3
+player = pygame.Rect(100, 120, 20, 20)
+speed = 3.0
+plant = pygame.Rect(650, 55, 230, 165)
 
-# Game data
 tools = [
-    "Laser Pointer",
-    "Ultraviolet",
-    "Headgear Light",
-    "Raw Meat",
-    "Leaves",
-    "Walkie-talkie",
-    "Bear Traps"
+    "Laser Pointer", "Ultraviolet", "Headgear Light",
+    "Raw Meat", "Leaves", "Walkie-talkie", "Bear Traps"
 ]
 
-traits = ["Carnivore", "Herbivore", "Micro"]
+traits_pool = [
+    "Carnivore", "Herbivore", "Micro",
+    "Nocturnal", "Radioactive"
+]
 
 specimens = []
+
 for i in range(30):
+    while True:
+        x = random.randint(45, WIDTH - 45)
+        y = random.randint(45, WORLD_HEIGHT - 45)
+        if not plant.inflate(35, 35).collidepoint(x, y):
+            break
+
     specimens.append({
-        "x": random.randint(80, WIDTH - 80),
-        "y": random.randint(80, HEIGHT - 80),
-        "traits": random.sample(traits, 3),
-        "found": False
+        "id": i + 1,
+        "x": x,
+        "y": y,
+        "traits": set(random.sample(traits_pool, 3)),
+        "evidence": {},
+        "found": False,
+        "identified": False,
+        "phase": random.random() * math.tau,
+        "speed": random.uniform(0.25, 0.7),
+        "direction": random.uniform(0, math.tau)
     })
 
+trees = [
+    (random.randint(0, WIDTH), random.randint(0, WORLD_HEIGHT),
+     random.randint(10, 22))
+    for _ in range(180)
+]
+
+rocks = [
+    (random.randint(20, WIDTH - 20),
+     random.randint(20, WORLD_HEIGHT - 20),
+     random.randint(4, 9))
+    for _ in range(30)
+]
+
 selected_tool = 0
-message = "Find specimens in the Dead Zone."
+flashlight_on = False
 identified = 0
+captured = 0
+message = "Explore the Dead Zone."
+running = True
 
-# Forest decorations
-trees = []
-for _ in range(180):
-    trees.append((
-        random.randint(0, WIDTH),
-        random.randint(0, HEIGHT)
-    ))
 
-def draw_text(text, x, y, color=WHITE):
-    image = font.render(text, True, color)
-    screen.blit(image, (x, y))
+def draw_text(text, x, y, color=WHITE, f=font):
+    screen.blit(f.render(str(text), True, color), (x, y))
+
+
+def distance(s):
+    return math.hypot(
+        player.centerx - s["x"],
+        player.centery - s["y"]
+    )
+
+
+def nearest_specimen(limit=99999):
+    choices = [
+        s for s in specimens
+        if not s["found"] and distance(s) <= limit
+    ]
+    return min(choices, key=distance) if choices else None
+
 
 def draw_world():
-    screen.fill(GRAY)
+    screen.fill((29, 43, 30))
 
-    # Forest floor
-    for x, y in trees:
+    for x, y, size in trees:
         pygame.draw.rect(
-            screen, GREEN, (x, y, 12, 12)
+            screen, random.choice([
+                (18, 43, 25), (24, 53, 29), (29, 61, 33)
+            ]), (x, y, size, size)
         )
 
-    # Abandoned nuclear plant
-    plant = pygame.Rect(650, 60, 220, 150)
-    pygame.draw.rect(screen, GRAY, plant)
-    pygame.draw.rect(screen, BLACK, plant, 4)
+    for x, y, size in rocks:
+        pygame.draw.ellipse(
+            screen, (67, 72, 63), (x, y, size * 2, size)
+        )
 
-    draw_text("ABANDONED PLANT", 665, 75, YELLOW)
+    pygame.draw.rect(screen, (24, 29, 25), plant.move(8, 8))
+    pygame.draw.rect(screen, (76, 79, 68), plant)
+    pygame.draw.rect(screen, BLACK, plant, 5)
 
-    # Warning symbol
+    draw_text("RESTRICTED ZONE", 672, 32, RED, small_font)
+    draw_text("ABANDONED PLANT", 672, 190, YELLOW, small_font)
+
     pygame.draw.polygon(
         screen, YELLOW,
-        [(760, 110), (740, 150), (780, 150)]
+        [(775, 65), (758, 96), (792, 96)]
     )
-    draw_text("!", 756, 125, BLACK)
+    draw_text("!", 770, 72, BLACK, big_font)
 
-def draw_specimens():
-    for s in specimens:
-        if not s["found"]:
-            color = CYAN
-            pygame.draw.rect(
-                screen, color,
-                (s["x"], s["y"], 12, 12)
-            )
 
-            # Laser pointer reveals nearby specimens
-            if selected_tool == 0:
-                distance = math.hypot(
-                    player.centerx - s["x"],
-                    player.centery - s["y"]
-                )
-                if distance < 150:
-                    pygame.draw.circle(
-                        screen, YELLOW,
-                        (s["x"] + 6, s["y"] + 6), 12, 1
-                    )
-
-def use_tool():
-    global identified, message
-
-    nearest = None
-    nearest_distance = 999999
-
+def update_specimens():
     for s in specimens:
         if s["found"]:
             continue
 
-        distance = math.hypot(
-            player.centerx - s["x"],
-            player.centery - s["y"]
-        )
+        s["phase"] += 0.025
 
-        if distance < nearest_distance:
-            nearest = s
-            nearest_distance = distance
+        if random.random() < 0.015:
+            s["direction"] += random.uniform(-0.8, 0.8)
 
-    if nearest is None or nearest_distance > 50:
+        s["x"] += math.cos(s["direction"]) * s["speed"]
+        s["y"] += math.sin(s["direction"]) * s["speed"]
+
+        s["x"] = max(15, min(WIDTH - 15, s["x"]))
+        s["y"] = max(15, min(WORLD_HEIGHT - 15, s["y"]))
+
+
+def draw_specimens():
+    for s in specimens:
+        if s["found"]:
+            continue
+
+        x, y = int(s["x"]), int(s["y"])
+        d = distance(s)
+
+        if d < 140 or flashlight_on or selected_tool in (0, 1, 5):
+            pulse = int(2 * math.sin(s["phase"] * 3))
+
+            glow = pygame.Surface((40, 40), pygame.SRCALPHA)
+            pygame.draw.circle(
+                glow, (45, 210, 205, 35), (20, 20), 16 + pulse
+            )
+            screen.blit(glow, (x - 20, y - 20))
+
+            pygame.draw.circle(screen, CYAN, (x, y), 5)
+            pygame.draw.circle(screen, WHITE, (x, y), 2)
+
+        if selected_tool == 0 and d < 180:
+            pygame.draw.circle(screen, YELLOW, (x, y), 13, 1)
+
+        if selected_tool == 5 and d < 220:
+            if "Radioactive" in s["traits"]:
+                pygame.draw.circle(screen, PURPLE, (x, y), 15, 2)
+
+
+def use_tool():
+    global identified, captured, message, flashlight_on
+
+    if selected_tool == 2:
+        flashlight_on = not flashlight_on
+        message = "Headgear light toggled."
+        return
+
+    max_range = 180 if selected_tool == 0 else 75
+    s = nearest_specimen(max_range)
+
+    if s is None:
         message = "No specimen nearby."
         return
 
-    tool = selected_tool
+    if selected_tool == 0:
+        message = f"Laser located specimen #{s['id']}."
+        return
 
-    # Different tools reveal different traits
-    if tool == 0:
-        message = "Laser: specimen located."
-    elif tool == 1:
-        message = "UV: Micro trait detected!"
-    elif tool == 2:
-        message = "Light: specimen illuminated."
-    elif tool == 3:
-        message = "Meat: testing carnivore response."
-    elif tool == 4:
-        message = "Leaves: testing herbivore response."
-    elif tool == 5:
-        message = "Radio: specimen signal detected."
-    elif tool == 6:
-        message = "Trap: specimen captured!"
+    if selected_tool == 5:
+        trait = "Radioactive"
+    elif selected_tool == 1:
+        trait = "Micro"
+    elif selected_tool == 3:
+        trait = "Carnivore"
+    elif selected_tool == 4:
+        trait = "Herbivore"
+    elif selected_tool == 6:
+        if len(s["evidence"]) < 2:
+            message = "Run two tests before capturing!"
+            return
 
-    # Capture with the selected tool
-    if tool == 6:
-        nearest["found"] = True
+        s["found"] = True
+        captured += 1
+
+        if not s["identified"]:
+            s["identified"] = True
+            identified += 1
+
+        message = f"Specimen captured! {captured}/30."
+        return
+    else:
+        return
+
+    result = trait in s["traits"]
+    s["evidence"][trait] = result
+
+    if result:
+        message = f"POSITIVE: specimen has {trait}."
+    else:
+        message = f"NEGATIVE: specimen lacks {trait}."
+
+    positives = sum(s["evidence"].values())
+
+    if positives >= 2 and not s["identified"]:
+        s["identified"] = True
         identified += 1
-        message = (
-            f"Specimen captured! "
-            f"{identified}/30 collected."
+        message = f"Specimen identified! {identified}/30."
+
+
+def draw_lighting():
+    darkness = pygame.Surface(
+        (WIDTH, WORLD_HEIGHT), pygame.SRCALPHA
+    )
+    darkness.fill((3, 7, 8, 185))
+
+    px, py = player.center
+
+    pygame.draw.circle(darkness, (3, 7, 8, 100), (px, py), 115)
+    pygame.draw.circle(darkness, (3, 7, 8, 0), (px, py), 72)
+
+    if flashlight_on:
+        pygame.draw.circle(
+            darkness, (3, 7, 8, 65), (px, py), 210
+        )
+        pygame.draw.circle(
+            darkness, (3, 7, 8, 0), (px, py), 165
         )
 
-    # Simple food-based identification
-    elif tool in (3, 4):
-        target = "Carnivore" if tool == 3 else "Herbivore"
+    screen.blit(darkness, (0, 0))
 
-        if target in nearest["traits"]:
-            nearest["found"] = True
-            identified += 1
-            message = (
-                f"{target} identified! "
-                f"{identified}/30"
-            )
-        else:
-            message = "No matching feeding response."
 
 def draw_ui():
+    y = HEIGHT - HUD_HEIGHT
+
+    pygame.draw.rect(screen, (10, 15, 12), (0, y, WIDTH, HUD_HEIGHT))
+    pygame.draw.line(screen, (75, 110, 79), (0, y), (WIDTH, y), 2)
+
+    draw_text(f"TOOL [{selected_tool + 1}/7]: {tools[selected_tool]}",
+              16, y + 9, YELLOW)
+
+    draw_text(message[:78], 16, y + 34, WHITE, small_font)
+    draw_text(f"IDENTIFIED {identified}/30", 665, y + 8, CYAN, small_font)
+    draw_text(f"CAPTURED {captured}/30", 665, y + 29, YELLOW, small_font)
+
+    pygame.draw.rect(screen, (39, 48, 40), (665, y + 51, 250, 9))
     pygame.draw.rect(
-        screen, BLACK, (0, HEIGHT - 100, WIDTH, 100)
+        screen, CYAN,
+        (665, y + 51, int(250 * identified / 30), 9)
     )
 
-    draw_text(f"Tool: {tools[selected_tool]}", 20, HEIGHT - 90)
-    draw_text(message, 20, HEIGHT - 62)
-    draw_text(
-        f"Specimens: {identified}/30",
-        WIDTH - 210, HEIGHT - 90, YELLOW
-    )
+    draw_text("WASD/ARROWS: MOVE | 1-7: TOOLS",
+              16, y + 61, WHITE, small_font)
+    draw_text("E: USE TOOL | ESC: QUIT",
+              16, y + 79, WHITE, small_font)
 
-    draw_text(
-        "WASD: Move | 1-7: Tools | E: Use tool",
-        20, HEIGHT - 30
-    )
-
-running = True
 
 while running:
-    clock.tick(60)
+    dt = clock.tick(60) / (1000 / 60)
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
         if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                running = False
+
             if pygame.K_1 <= event.key <= pygame.K_7:
                 selected_tool = event.key - pygame.K_1
 
@@ -212,36 +300,41 @@ while running:
 
     keys = pygame.key.get_pressed()
 
-    dx = 0
-    dy = 0
+    dx = (int(keys[pygame.K_d] or keys[pygame.K_RIGHT])
+          - int(keys[pygame.K_a] or keys[pygame.K_LEFT])) * speed * dt
 
-    if keys[pygame.K_w] or keys[pygame.K_UP]:
-        dy -= speed
-    if keys[pygame.K_s] or keys[pygame.K_DOWN]:
-        dy += speed
-    if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-        dx -= speed
-    if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-        dx += speed
+    dy = (int(keys[pygame.K_s] or keys[pygame.K_DOWN])
+          - int(keys[pygame.K_w] or keys[pygame.K_UP])) * speed * dt
 
-    # Prevent faster diagonal movement
     if dx and dy:
         dx *= 0.7071
         dy *= 0.7071
 
     player.x += round(dx)
     player.y += round(dy)
+    player.clamp_ip(pygame.Rect(0, 0, WIDTH, WORLD_HEIGHT))
 
-    player.clamp_ip(screen.get_rect())
+    update_specimens()
 
     draw_world()
     draw_specimens()
 
-    # Player
-    pygame.draw.rect(screen, RED, player)
+    pygame.draw.rect(screen, DARK_GREEN, player)
     pygame.draw.rect(screen, WHITE, player, 1)
 
+    if flashlight_on:
+        pygame.draw.circle(screen, YELLOW,
+                           (player.centerx, player.centery - 5), 3)
+
+    draw_lighting()
     draw_ui()
+
+    if identified >= 30 and captured >= 30:
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 190))
+        screen.blit(overlay, (0, 0))
+        draw_text("FIELD RESEARCH COMPLETE", 300, 250, CYAN, big_font)
+        draw_text("YOU SURVIVED THE DEAD ZONE.", 320, 310, WHITE)
 
     pygame.display.flip()
 
