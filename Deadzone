@@ -260,7 +260,7 @@ def draw_difficulty():
 
     text(
         "SELECT DIFFICULTY",
-        310, 150, CYAN, big
+        310, 150, RED, big
     )
 
     mouse = pygame.mouse.get_pos()
@@ -291,7 +291,7 @@ def draw_help():
 
     text(
         "HOW TO SURVIVE",
-        340, 70, CYAN, big
+        340, 70, RED, big
     )
 
     instructions = [
