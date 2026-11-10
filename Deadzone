@@ -1,89 +1,195 @@
 import pygame
 import random
 import math
+import sys
 
 pygame.init()
 
+# =====================================
+# DEAD ZONE - SURVIVAL RESEARCH
+# =====================================
+
 WIDTH, HEIGHT = 960, 640
-HUD_HEIGHT = 100
-WORLD_HEIGHT = HEIGHT - HUD_HEIGHT
+HUD = 110
+WORLD_H = HEIGHT - HUD
+
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("DEAD ZONE")
 clock = pygame.time.Clock()
 
-BLACK = (8, 11, 9)
-DARK_GREEN = (17, 37, 24)
-GREEN = (34, 67, 37)
-WHITE = (225, 230, 213)
-YELLOW = (239, 216, 100)
-CYAN = (75, 230, 225)
-RED = (195, 54, 42)
-PURPLE = (180, 110, 230)
+BLACK = (5, 8, 7)
+WHITE = (230, 235, 220)
+GREEN = (45, 100, 55)
+CYAN = (70, 230, 220)
+RED = (210, 45, 45)
+YELLOW = (240, 210, 90)
+PURPLE = (180, 100, 230)
 
-font = pygame.font.Font(None, 22)
-small_font = pygame.font.Font(None, 18)
-big_font = pygame.font.Font(None, 34)
+font = pygame.font.Font(None, 28)
+small = pygame.font.Font(None, 21)
+big = pygame.font.Font(None, 68)
 
-player = pygame.Rect(100, 120, 20, 20)
-speed = 3.0
-plant = pygame.Rect(650, 55, 230, 165)
+MENU = "menu"
+DIFFICULTY = "difficulty"
+PLAYING = "playing"
+PAUSED = "paused"
+GAME_OVER = "game_over"
+VICTORY = "victory"
+HELP = "help"
 
-tools = [
-    "Laser Pointer", "Ultraviolet", "Headgear Light",
-    "Raw Meat", "Leaves", "Walkie-talkie", "Bear Traps"
-]
+state = MENU
+difficulty = "NORMAL"
 
-traits_pool = [
-    "Carnivore", "Herbivore", "Micro",
-    "Nocturnal", "Radioactive"
-]
+player = pygame.Rect(100, 100, 22, 22)
 
-specimens = []
-
-for i in range(30):
-    while True:
-        x = random.randint(45, WIDTH - 45)
-        y = random.randint(45, WORLD_HEIGHT - 45)
-        if not plant.inflate(35, 35).collidepoint(x, y):
-            break
-
-    specimens.append({
-        "id": i + 1,
-        "x": x,
-        "y": y,
-        "traits": set(random.sample(traits_pool, 3)),
-        "evidence": {},
-        "found": False,
-        "identified": False,
-        "phase": random.random() * math.tau,
-        "speed": random.uniform(0.25, 0.7),
-        "direction": random.uniform(0, math.tau)
-    })
-
-trees = [
-    (random.randint(0, WIDTH), random.randint(0, WORLD_HEIGHT),
-     random.randint(10, 22))
-    for _ in range(180)
-]
-
-rocks = [
-    (random.randint(20, WIDTH - 20),
-     random.randint(20, WORLD_HEIGHT - 20),
-     random.randint(4, 9))
-    for _ in range(30)
-]
-
-selected_tool = 0
-flashlight_on = False
+health = 100
+stamina = 100
+battery = 100
+score = 0
 identified = 0
 captured = 0
-message = "Explore the Dead Zone."
-running = True
+
+selected_tool = 0
+flashlight = False
+message = "Welcome to the Dead Zone."
+
+tools = [
+    "Laser Scanner",
+    "Ultraviolet",
+    "Headgear Light",
+    "Meat Bait",
+    "Plant Sample",
+    "Radio Scanner",
+    "Bear Trap"
+]
+
+traits = [
+    "Carnivore",
+    "Herbivore",
+    "Micro",
+    "Nocturnal",
+    "Radioactive"
+]
+
+difficulty_settings = {
+    "EASY": (100, 0.45, 1),
+    "NORMAL": (80, 0.75, 2),
+    "HARD": (60, 1.15, 3)
+}
+
+trees = [
+    (
+        random.randint(0, WIDTH),
+        random.randint(0, WORLD_H),
+        random.randint(8, 20)
+    )
+    for _ in range(170)
+]
+
+plant = pygame.Rect(650, 55, 230, 165)
+
+specimens = []
+supplies = []
 
 
-def draw_text(text, x, y, color=WHITE, f=font):
-    screen.blit(f.render(str(text), True, color), (x, y))
+# =====================================
+# TEXT AND BUTTONS
+# =====================================
 
+def text(value, x, y, color=WHITE, f=font):
+    image = f.render(str(value), True, color)
+    screen.blit(image, (x, y))
+
+
+def button(label, rect, mouse):
+    color = (45, 75, 48)
+
+    if rect.collidepoint(mouse):
+        color = (80, 130, 85)
+
+    pygame.draw.rect(
+        screen, color, rect, border_radius=8
+    )
+
+    pygame.draw.rect(
+        screen, WHITE, rect, 2, border_radius=8
+    )
+
+    image = font.render(label, True, WHITE)
+
+    screen.blit(
+        image,
+        image.get_rect(center=rect.center)
+    )
+
+    return rect.collidepoint(mouse)
+
+
+# =====================================
+# RESET AND GENERATE GAME
+# =====================================
+
+def reset_game():
+    global health, stamina, battery
+    global score, identified, captured
+    global specimens, supplies, player
+    global message, selected_tool, flashlight
+
+    health = difficulty_settings[difficulty][0]
+    stamina = 100
+    battery = 100
+
+    score = 0
+    identified = 0
+    captured = 0
+
+    player = pygame.Rect(100, 100, 22, 22)
+
+    selected_tool = 0
+    flashlight = False
+
+    specimens = []
+    supplies = []
+
+    message = "Mission 1: Investigate the abandoned facility."
+
+    for i in range(30):
+
+        while True:
+            x = random.randint(40, WIDTH - 40)
+            y = random.randint(40, WORLD_H - 40)
+
+            if not plant.inflate(30, 30).collidepoint(x, y):
+                break
+
+        specimens.append({
+            "id": i + 1,
+            "x": float(x),
+            "y": float(y),
+            "traits": set(random.sample(traits, 3)),
+            "evidence": {},
+            "identified": False,
+            "captured": False,
+            "hostile": random.random() < 0.35,
+            "phase": random.random() * math.tau,
+            "direction": random.random() * math.tau,
+            "speed": random.uniform(0.3, 0.7)
+        })
+
+    for i in range(12):
+        supplies.append({
+            "x": random.randint(40, WIDTH - 40),
+            "y": random.randint(40, WORLD_H - 40),
+            "type": random.choice([
+                "health", "battery", "stamina"
+            ]),
+            "collected": False
+        })
+
+
+# =====================================
+# SPECIMEN DISTANCE AND TARGETING
+# =====================================
 
 def distance(s):
     return math.hypot(
@@ -92,250 +198,786 @@ def distance(s):
     )
 
 
-def nearest_specimen(limit=99999):
+def nearest_specimen(limit=100):
     choices = [
         s for s in specimens
-        if not s["found"] and distance(s) <= limit
+        if not s["captured"] and distance(s) < limit
     ]
+
     return min(choices, key=distance) if choices else None
 
 
-def draw_world():
-    screen.fill((29, 43, 30))
+# =====================================
+# START MENU
+# =====================================
 
-    for x, y, size in trees:
-        pygame.draw.rect(
-            screen, random.choice([
-                (18, 43, 25), (24, 53, 29), (29, 61, 33)
-            ]), (x, y, size, size)
+def draw_menu():
+    screen.fill((5, 12, 9))
+
+    for i in range(35):
+        x = (
+            i * 97 + pygame.time.get_ticks() // 20
+        ) % WIDTH
+
+        y = (i * 53) % WORLD_H
+
+        pygame.draw.circle(
+            screen, (20, 65, 35),
+            (x, y), 2
         )
 
-    for x, y, size in rocks:
-        pygame.draw.ellipse(
-            screen, (67, 72, 63), (x, y, size * 2, size)
-        )
+    title = big.render("DEAD ZONE", True, RED)
 
-    pygame.draw.rect(screen, (24, 29, 25), plant.move(8, 8))
-    pygame.draw.rect(screen, (76, 79, 68), plant)
-    pygame.draw.rect(screen, BLACK, plant, 5)
-
-    draw_text("RESTRICTED ZONE", 672, 32, RED, small_font)
-    draw_text("ABANDONED PLANT", 672, 190, YELLOW, small_font)
-
-    pygame.draw.polygon(
-        screen, YELLOW,
-        [(775, 65), (758, 96), (792, 96)]
+    screen.blit(
+        title,
+        title.get_rect(center=(WIDTH // 2, 160))
     )
-    draw_text("!", 770, 72, BLACK, big_font)
+
+    text(
+        "SURVIVAL RESEARCH PROJECT",
+        320, 220, CYAN
+    )
+
+    mouse = pygame.mouse.get_pos()
+
+    new_rect = pygame.Rect(350, 300, 260, 50)
+    help_rect = pygame.Rect(350, 370, 260, 50)
+    quit_rect = pygame.Rect(350, 440, 260, 50)
+
+    button("NEW GAME", new_rect, mouse)
+    button("HOW TO PLAY", help_rect, mouse)
+    button("QUIT", quit_rect, mouse)
+
+    return new_rect, help_rect, quit_rect
 
 
-def update_specimens():
-    for s in specimens:
-        if s["found"]:
+# =====================================
+# DIFFICULTY MENU
+# =====================================
+
+def draw_difficulty():
+    screen.fill((8, 15, 11))
+
+    text(
+        "SELECT DIFFICULTY",
+        310, 150, CYAN, big
+    )
+
+    mouse = pygame.mouse.get_pos()
+
+    options = ["EASY", "NORMAL", "HARD"]
+
+    for i, option in enumerate(options):
+        rect = pygame.Rect(
+            350, 260 + i * 75, 260, 55
+        )
+
+        button(option, rect, mouse)
+
+    return [
+        pygame.Rect(
+            350, 260 + i * 75, 260, 55
+        )
+        for i in range(3)
+    ]
+
+
+# =====================================
+# HOW TO PLAY
+# =====================================
+
+def draw_help():
+    screen.fill((8, 15, 11))
+
+    text(
+        "HOW TO SURVIVE",
+        340, 70, CYAN, big
+    )
+
+    instructions = [
+        "WASD or ARROWS - Move",
+        "SHIFT - Sprint",
+        "1-7 - Select research tools",
+        "E - Use selected tool",
+        "P - Pause",
+        "",
+        "Find specimens in the dark.",
+        "Collect evidence using research tools.",
+        "Identify specimens with positive results.",
+        "Use bear traps to capture identified specimens.",
+        "Avoid hostile creatures.",
+        "Collect medical supplies and batteries."
+    ]
+
+    for i, line in enumerate(instructions):
+        text(
+            line, 180, 180 + i * 29,
+            WHITE, small
+        )
+
+    mouse = pygame.mouse.get_pos()
+
+    rect = pygame.Rect(350, 535, 260, 50)
+
+    button("BACK", rect, mouse)
+
+    return rect
+
+
+# =====================================
+# END SCREENS
+# =====================================
+
+def draw_end(title, subtitle):
+    screen.fill((5, 10, 8))
+
+    text(title, 250, 190, RED, big)
+    text(subtitle, 290, 280, WHITE)
+
+    text(
+        f"FINAL SCORE: {score}",
+        390, 340, YELLOW
+    )
+
+    text(
+        f"SPECIMENS IDENTIFIED: {identified}",
+        350, 380, CYAN
+    )
+
+    text(
+        f"SPECIMENS CAPTURED: {captured}",
+        350, 415, WHITE
+    )
+
+    mouse = pygame.mouse.get_pos()
+
+    rect = pygame.Rect(350, 490, 260, 50)
+
+    button("MAIN MENU", rect, mouse)
+
+    return rect
+
+# =====================================
+# RESEARCH SYSTEM
+# =====================================
+
+def use_tool():
+    global message, identified, captured
+    global score, flashlight
+
+    if selected_tool == 2:
+        flashlight = not flashlight
+        message = "Headgear light switched."
+        return
+
+    specimen = nearest_specimen(
+        180 if selected_tool == 0 else 85
+    )
+
+    if specimen is None:
+        message = "No specimen within range."
+        return
+
+    if selected_tool == 0:
+        message = (
+            f"Scanner detected specimen #{specimen['id']}."
+        )
+        return
+
+    if selected_tool == 1:
+        trait = "Micro"
+
+    elif selected_tool == 3:
+        trait = "Carnivore"
+
+    elif selected_tool == 4:
+        trait = "Herbivore"
+
+    elif selected_tool == 5:
+        trait = "Radioactive"
+
+    elif selected_tool == 6:
+
+        if not specimen["identified"]:
+            message = "Collect two positive tests first!"
+            return
+
+        specimen["captured"] = True
+        captured += 1
+        score += 100
+
+        message = "Specimen captured! +100 points."
+        return
+
+    else:
+        return
+
+    result = trait in specimen["traits"]
+
+    specimen["evidence"][trait] = result
+
+    if result:
+        message = f"POSITIVE: {trait} detected!"
+    else:
+        message = f"NEGATIVE: No {trait} detected."
+
+    if sum(specimen["evidence"].values()) >= 2:
+
+        if not specimen["identified"]:
+            specimen["identified"] = True
+            identified += 1
+            score += 50
+
+            message = "SPECIMEN IDENTIFIED! +50 points."
+
+
+# =====================================
+# SUPPLY SYSTEM
+# =====================================
+
+def update_supplies():
+    global health, battery, stamina
+    global score, message
+
+    for item in supplies:
+
+        if item["collected"]:
             continue
 
-        s["phase"] += 0.025
+        rect = pygame.Rect(
+            item["x"] - 9,
+            item["y"] - 9,
+            18, 18
+        )
 
-        if random.random() < 0.015:
-            s["direction"] += random.uniform(-0.8, 0.8)
+        if player.colliderect(rect):
 
-        s["x"] += math.cos(s["direction"]) * s["speed"]
-        s["y"] += math.sin(s["direction"]) * s["speed"]
+            item["collected"] = True
+            score += 20
+
+            if item["type"] == "health":
+                health = min(100, health + 30)
+                message = "Medical supplies collected!"
+
+            elif item["type"] == "battery":
+                battery = min(100, battery + 35)
+                message = "Flashlight battery restored!"
+
+            else:
+                stamina = 100
+                message = "Energy supplies collected!"
+
+
+# =====================================
+# SPECIMEN AI
+# =====================================
+
+def update_specimens(dt):
+    global health
+
+    difficulty_speed = difficulty_settings[difficulty][1]
+
+    for s in specimens:
+
+        if s["captured"]:
+            continue
+
+        s["phase"] += 0.05 * dt
+
+        d = distance(s)
+
+        if s["hostile"] and d < 220:
+
+            angle = math.atan2(
+                player.centery - s["y"],
+                player.centerx - s["x"]
+            )
+
+            s["x"] += (
+                math.cos(angle) * difficulty_speed * dt
+            )
+
+            s["y"] += (
+                math.sin(angle) * difficulty_speed * dt
+            )
+
+            if d < 24:
+                health -= (
+                    difficulty_settings[difficulty][2]
+                    * 0.12 * dt
+                )
+
+        else:
+
+            if random.random() < 0.025 * dt:
+                s["direction"] += random.uniform(-1, 1)
+
+            s["x"] += (
+                math.cos(s["direction"])
+                * s["speed"] * dt
+            )
+
+            s["y"] += (
+                math.sin(s["direction"])
+                * s["speed"] * dt
+            )
 
         s["x"] = max(15, min(WIDTH - 15, s["x"]))
-        s["y"] = max(15, min(WORLD_HEIGHT - 15, s["y"]))
+        s["y"] = max(15, min(WORLD_H - 15, s["y"]))
 
+
+# =====================================
+# WORLD GRAPHICS
+# =====================================
+
+def draw_world():
+    screen.fill((22, 36, 25))
+
+    for x, y, size in trees:
+
+        color = random.choice([
+            (15, 37, 22),
+            (22, 48, 27),
+            (29, 59, 33)
+        ])
+
+        pygame.draw.rect(
+            screen, color,
+            (x, y, size, size)
+        )
+
+    pygame.draw.rect(
+        screen, (55, 65, 55), plant
+    )
+
+    pygame.draw.rect(
+        screen, BLACK, plant, 4
+    )
+
+    text(
+        "RESTRICTED FACILITY",
+        672, 30, RED, small
+    )
+
+    text(
+        "ABANDONED PLANT",
+        672, 190, YELLOW, small
+    )
+
+
+# =====================================
+# DRAW SPECIMENS
+# =====================================
 
 def draw_specimens():
+
     for s in specimens:
-        if s["found"]:
+
+        if s["captured"]:
             continue
 
         x, y = int(s["x"]), int(s["y"])
         d = distance(s)
 
-        if d < 140 or flashlight_on or selected_tool in (0, 1, 5):
-            pulse = int(2 * math.sin(s["phase"] * 3))
+        visible = (
+            d < 140
+            or flashlight
+            or selected_tool in (0, 1, 5)
+        )
 
-            glow = pygame.Surface((40, 40), pygame.SRCALPHA)
+        if visible:
+
+            pulse = int(math.sin(s["phase"]) * 3)
+
+            color = RED if s["hostile"] else CYAN
+
             pygame.draw.circle(
-                glow, (45, 210, 205, 35), (20, 20), 16 + pulse
+                screen, color,
+                (x, y), 7 + pulse
             )
-            screen.blit(glow, (x - 20, y - 20))
 
-            pygame.draw.circle(screen, CYAN, (x, y), 5)
-            pygame.draw.circle(screen, WHITE, (x, y), 2)
-
-        if selected_tool == 0 and d < 180:
-            pygame.draw.circle(screen, YELLOW, (x, y), 13, 1)
-
-        if selected_tool == 5 and d < 220:
-            if "Radioactive" in s["traits"]:
-                pygame.draw.circle(screen, PURPLE, (x, y), 15, 2)
+            pygame.draw.circle(
+                screen, WHITE,
+                (x, y), 2
+            )
 
 
-def use_tool():
-    global identified, captured, message, flashlight_on
+# =====================================
+# DRAW SUPPLIES
+# =====================================
 
-    if selected_tool == 2:
-        flashlight_on = not flashlight_on
-        message = "Headgear light toggled."
-        return
+def draw_supplies():
 
-    max_range = 180 if selected_tool == 0 else 75
-    s = nearest_specimen(max_range)
+    for item in supplies:
 
-    if s is None:
-        message = "No specimen nearby."
-        return
+        if item["collected"]:
+            continue
 
-    if selected_tool == 0:
-        message = f"Laser located specimen #{s['id']}."
-        return
+        color = {
+            "health": RED,
+            "battery": YELLOW,
+            "stamina": GREEN
+        }[item["type"]]
 
-    if selected_tool == 5:
-        trait = "Radioactive"
-    elif selected_tool == 1:
-        trait = "Micro"
-    elif selected_tool == 3:
-        trait = "Carnivore"
-    elif selected_tool == 4:
-        trait = "Herbivore"
-    elif selected_tool == 6:
-        if len(s["evidence"]) < 2:
-            message = "Run two tests before capturing!"
-            return
+        pygame.draw.rect(
+            screen, color,
+            (item["x"] - 7, item["y"] - 7, 14, 14)
+        )
 
-        s["found"] = True
-        captured += 1
 
-        if not s["identified"]:
-            s["identified"] = True
-            identified += 1
-
-        message = f"Specimen captured! {captured}/30."
-        return
-    else:
-        return
-
-    result = trait in s["traits"]
-    s["evidence"][trait] = result
-
-    if result:
-        message = f"POSITIVE: specimen has {trait}."
-    else:
-        message = f"NEGATIVE: specimen lacks {trait}."
-
-    positives = sum(s["evidence"].values())
-
-    if positives >= 2 and not s["identified"]:
-        s["identified"] = True
-        identified += 1
-        message = f"Specimen identified! {identified}/30."
-
+# =====================================
+# DARKNESS AND FLASHLIGHT
+# =====================================
 
 def draw_lighting():
+
     darkness = pygame.Surface(
-        (WIDTH, WORLD_HEIGHT), pygame.SRCALPHA
+        (WIDTH, WORLD_H),
+        pygame.SRCALPHA
     )
-    darkness.fill((3, 7, 8, 185))
 
-    px, py = player.center
+    darkness.fill((0, 0, 0, 175))
 
-    pygame.draw.circle(darkness, (3, 7, 8, 100), (px, py), 115)
-    pygame.draw.circle(darkness, (3, 7, 8, 0), (px, py), 72)
+    radius = 155 if flashlight else 90
 
-    if flashlight_on:
-        pygame.draw.circle(
-            darkness, (3, 7, 8, 65), (px, py), 210
-        )
-        pygame.draw.circle(
-            darkness, (3, 7, 8, 0), (px, py), 165
-        )
+    pygame.draw.circle(
+        darkness,
+        (0, 0, 0, 0),
+        player.center,
+        radius
+    )
 
     screen.blit(darkness, (0, 0))
 
 
-def draw_ui():
-    y = HEIGHT - HUD_HEIGHT
+# =====================================
+# HUD
+# =====================================
 
-    pygame.draw.rect(screen, (10, 15, 12), (0, y, WIDTH, HUD_HEIGHT))
-    pygame.draw.line(screen, (75, 110, 79), (0, y), (WIDTH, y), 2)
+def draw_hud():
 
-    draw_text(f"TOOL [{selected_tool + 1}/7]: {tools[selected_tool]}",
-              16, y + 9, YELLOW)
+    y = WORLD_H
 
-    draw_text(message[:78], 16, y + 34, WHITE, small_font)
-    draw_text(f"IDENTIFIED {identified}/30", 665, y + 8, CYAN, small_font)
-    draw_text(f"CAPTURED {captured}/30", 665, y + 29, YELLOW, small_font)
-
-    pygame.draw.rect(screen, (39, 48, 40), (665, y + 51, 250, 9))
     pygame.draw.rect(
-        screen, CYAN,
-        (665, y + 51, int(250 * identified / 30), 9)
+        screen, (8, 13, 10),
+        (0, y, WIDTH, HUD)
     )
 
-    draw_text("WASD/ARROWS: MOVE | 1-7: TOOLS",
-              16, y + 61, WHITE, small_font)
-    draw_text("E: USE TOOL | ESC: QUIT",
-              16, y + 79, WHITE, small_font)
+    pygame.draw.line(
+        screen, GREEN,
+        (0, y), (WIDTH, y), 2
+    )
 
+    text(
+        f"TOOL: {tools[selected_tool]}",
+        15, y + 8, YELLOW
+    )
+
+    text(
+        message[:75],
+        15, y + 35, WHITE, small
+    )
+
+    text(
+        f"HEALTH: {int(health)}",
+        650, y + 8, RED, small
+    )
+
+    text(
+        f"STAMINA: {int(stamina)}",
+        650, y + 29, GREEN, small
+    )
+
+    text(
+        f"BATTERY: {int(battery)}",
+        650, y + 50, YELLOW, small
+    )
+
+    text(
+        f"IDENTIFIED: {identified}/30",
+        15, y + 65, CYAN, small
+    )
+
+    text(
+        f"CAPTURED: {captured}/30",
+        250, y + 65, YELLOW, small
+    )
+
+    text(
+        f"SCORE: {score}",
+        480, y + 65, WHITE, small
+    )
+
+    text(
+        "WASD: MOVE | SHIFT: SPRINT | E: USE | 1-7: TOOLS | P: PAUSE",
+        15, y + 88, WHITE, small
+    )
+
+    # =====================================
+# MAIN GAME LOOP
+# =====================================
+
+running = True
 
 while running:
-    dt = clock.tick(60) / (1000 / 60)
+
+    dt = min(clock.tick(60) / 16.67, 2)
+
+    mouse_clicked = False
+    mouse_position = pygame.mouse.get_pos()
 
     for event in pygame.event.get():
+
         if event.type == pygame.QUIT:
             running = False
 
+        if event.type == pygame.MOUSEBUTTONDOWN:
+
+            if event.button == 1:
+                mouse_clicked = True
+                mouse_position = event.pos
+
         if event.type == pygame.KEYDOWN:
+
             if event.key == pygame.K_ESCAPE:
+
+                if state == PLAYING:
+                    state = PAUSED
+
+                elif state == PAUSED:
+                    state = PLAYING
+
+                elif state != MENU:
+                    state = MENU
+
+                else:
+                    running = False
+
+            if state == PLAYING:
+
+                if event.key == pygame.K_p:
+                    state = PAUSED
+
+                if pygame.K_1 <= event.key <= pygame.K_7:
+                    selected_tool = event.key - pygame.K_1
+
+                if event.key == pygame.K_e:
+                    use_tool()
+
+            elif state == PAUSED:
+
+                if event.key == pygame.K_p:
+                    state = PLAYING
+
+    # =================================
+    # MAIN MENU
+    # =================================
+
+    if state == MENU:
+
+        new_rect, help_rect, quit_rect = draw_menu()
+
+        if mouse_clicked:
+
+            if new_rect.collidepoint(mouse_position):
+                state = DIFFICULTY
+
+            elif help_rect.collidepoint(mouse_position):
+                state = HELP
+
+            elif quit_rect.collidepoint(mouse_position):
                 running = False
 
-            if pygame.K_1 <= event.key <= pygame.K_7:
-                selected_tool = event.key - pygame.K_1
+    # =================================
+    # DIFFICULTY SELECTION
+    # =================================
 
-            if event.key == pygame.K_e:
-                use_tool()
+    elif state == DIFFICULTY:
 
-    keys = pygame.key.get_pressed()
+        rects = draw_difficulty()
 
-    dx = (int(keys[pygame.K_d] or keys[pygame.K_RIGHT])
-          - int(keys[pygame.K_a] or keys[pygame.K_LEFT])) * speed * dt
+        if mouse_clicked:
 
-    dy = (int(keys[pygame.K_s] or keys[pygame.K_DOWN])
-          - int(keys[pygame.K_w] or keys[pygame.K_UP])) * speed * dt
+            options = ["EASY", "NORMAL", "HARD"]
 
-    if dx and dy:
-        dx *= 0.7071
-        dy *= 0.7071
+            for i, rect in enumerate(rects):
 
-    player.x += round(dx)
-    player.y += round(dy)
-    player.clamp_ip(pygame.Rect(0, 0, WIDTH, WORLD_HEIGHT))
+                if rect.collidepoint(mouse_position):
 
-    update_specimens()
+                    difficulty = options[i]
 
-    draw_world()
-    draw_specimens()
+                    reset_game()
 
-    pygame.draw.rect(screen, DARK_GREEN, player)
-    pygame.draw.rect(screen, WHITE, player, 1)
+                    state = PLAYING
 
-    if flashlight_on:
-        pygame.draw.circle(screen, YELLOW,
-                           (player.centerx, player.centery - 5), 3)
+    # =================================
+    # HELP MENU
+    # =================================
 
-    draw_lighting()
-    draw_ui()
+    elif state == HELP:
 
-    if identified >= 30 and captured >= 30:
-        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        rect = draw_help()
+
+        if mouse_clicked and rect.collidepoint(mouse_position):
+            state = MENU
+
+    # =================================
+    # GAMEPLAY
+    # =================================
+
+    elif state == PLAYING:
+
+        keys = pygame.key.get_pressed()
+
+        dx = (
+            int(keys[pygame.K_d] or keys[pygame.K_RIGHT])
+            - int(keys[pygame.K_a] or keys[pygame.K_LEFT])
+        )
+
+        dy = (
+            int(keys[pygame.K_s] or keys[pygame.K_DOWN])
+            - int(keys[pygame.K_w] or keys[pygame.K_UP])
+        )
+
+        sprinting = (
+            keys[pygame.K_LSHIFT]
+            or keys[pygame.K_RSHIFT]
+        ) and stamina > 0 and (dx or dy)
+
+        movement_speed = 5 if sprinting else 3
+
+        if sprinting:
+            stamina = max(0, stamina - 0.35 * dt)
+
+        else:
+            stamina = min(100, stamina + 0.2 * dt)
+
+        if dx and dy:
+            dx *= 0.707
+            dy *= 0.707
+
+        player.x += round(dx * movement_speed * dt)
+        player.y += round(dy * movement_speed * dt)
+
+        player.clamp_ip(
+            pygame.Rect(0, 0, WIDTH, WORLD_H)
+        )
+
+        # FLASHLIGHT BATTERY
+
+        if flashlight:
+
+            battery = max(0, battery - 0.06 * dt)
+
+            if battery <= 0:
+                flashlight = False
+                message = "Flashlight battery depleted!"
+
+        # UPDATE GAME SYSTEMS
+
+        update_specimens(dt)
+        update_supplies()
+
+        # CHECK GAME END
+
+        if health <= 0:
+            health = 0
+            state = GAME_OVER
+
+        elif captured >= 30 and identified >= 30:
+            state = VICTORY
+
+        # DRAW WORLD
+
+        draw_world()
+        draw_supplies()
+        draw_specimens()
+
+        # DRAW PLAYER
+
+        pygame.draw.rect(
+            screen,
+            (30, 80, 40),
+            player
+        )
+
+        pygame.draw.rect(
+            screen,
+            WHITE,
+            player,
+            2
+        )
+
+        # DRAW LIGHTING
+
+        draw_lighting()
+
+        # DRAW HUD
+
+        draw_hud()
+
+    # =================================
+    # PAUSE SCREEN
+    # =================================
+
+    elif state == PAUSED:
+
+        draw_world()
+        draw_specimens()
+
+        overlay = pygame.Surface(
+            (WIDTH, HEIGHT),
+            pygame.SRCALPHA
+        )
+
         overlay.fill((0, 0, 0, 190))
+
         screen.blit(overlay, (0, 0))
-        draw_text("FIELD RESEARCH COMPLETE", 300, 250, CYAN, big_font)
-        draw_text("YOU SURVIVED THE DEAD ZONE.", 320, 310, WHITE)
+
+        text(
+            "GAME PAUSED",
+            340, 230, YELLOW, big
+        )
+
+        text(
+            "Press P or ESC to resume",
+            355, 330, WHITE
+        )
+
+    # =================================
+    # GAME OVER
+    # =================================
+
+    elif state == GAME_OVER:
+
+        rect = draw_end(
+            "YOU DIED",
+            "The Dead Zone claimed another researcher."
+        )
+
+        if mouse_clicked and rect.collidepoint(mouse_position):
+            state = MENU
+
+    # =================================
+    # VICTORY
+    # =================================
+
+    elif state == VICTORY:
+
+        rect = draw_end(
+            "MISSION COMPLETE",
+            "All specimens have been researched and captured."
+        )
+
+        if mouse_clicked and rect.collidepoint(mouse_position):
+            state = MENU
 
     pygame.display.flip()
 
+
+# =====================================
+# EXIT
+# =====================================
+
 pygame.quit()
+sys.exit()
